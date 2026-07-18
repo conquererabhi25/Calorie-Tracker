@@ -24,7 +24,7 @@ export default function App() {
 
   const fetchData = async (targetDate) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/logs/${targetDate}`);
+      const res = await fetch(`https://calorie-tracker-1-23f4.onrender.com/api/logs/${targetDate}`);
       const data = await res.json();
       
       // If data exists in MongoDB, use it, otherwise fall back to your personal baselines
@@ -42,7 +42,7 @@ export default function App() {
 
   const fetchAnalytics = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/analytics');
+      const res = await fetch('https://calorie-tracker-1-23f4.onrender.com/api/analytics');
       const data = await res.json();
       setAnalytics(data);
     } catch (err) {
@@ -93,7 +93,7 @@ export default function App() {
     };
 
     try {
-      await fetch('http://localhost:5000/api/logs', {
+      await fetch('https://calorie-tracker-1-23f4.onrender.com/api/logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
