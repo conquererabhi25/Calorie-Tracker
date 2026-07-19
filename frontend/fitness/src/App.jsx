@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Flame, Apple, Dumbbell, TrendingDown, Scale, Plus, Calendar, Save, Trash2, TrendingUp, Zap, Trophy } from 'lucide-react';
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function App() {
   const todayStr = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(todayStr);
   
-  // Set your baseline metrics directly as defaults
+  // Set baseline metrics directly as defaults
   const [weight, setWeight] = useState(67);
   const [height, setHeight] = useState(160);
   const [age, setAge] = useState(27);
   
-  // High-performance default targets for your weight-loss goals
+  // High-performance default targets for weight-loss goals
   const [calorieTarget, setCalorieTarget] = useState(1600); 
   const [burnTarget, setBurnTarget] = useState(250);
 
@@ -20,14 +21,15 @@ export default function App() {
   const [workoutCals, setWorkoutCals] = useState('');
 
   const [analytics, setAnalytics] = useState({ weeklyLoss: 0, monthlyLoss: 0, totalDeficitTillToday: 0 });
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchData = async (targetDate) => {
     try {
       const res = await fetch(`https://calorie-tracker-1-23f4.onrender.com/api/logs/${targetDate}`);
       const data = await res.json();
       
-      // If data exists in MongoDB, use it, otherwise fall back to your personal baselines
+      // If data exists in MongoDB, use it, otherwise fall back to personal baselines
       setWeight(data.weight || 67);
       setHeight(data.height || 160);
       setAge(data.age || 27);
@@ -37,6 +39,7 @@ export default function App() {
       setWorkouts(data.workouts || []);
     } catch (err) {
       console.error("Error fetching daily log:", err);
+      toast.error('Failed to load daily log configurations.');
     }
   };
 
@@ -47,12 +50,18 @@ export default function App() {
       setAnalytics(data);
     } catch (err) {
       console.error("Error fetching analytics:", err);
+      toast.error('Failed to refresh data trends.');
     }
   };
 
+  // Combined fetch handler to manage full screen layout loading states
   useEffect(() => {
-    fetchData(date);
-    fetchAnalytics();
+    async function loadInitialData() {
+      setInitialLoading(true);
+      await Promise.all([fetchData(date), fetchAnalytics()]);
+      setInitialLoading(false);
+    }
+    loadInitialData();
   }, [date]);
 
   // CORRECT BIOMETRIC EQUATIONS
@@ -75,7 +84,7 @@ export default function App() {
   const burnPercentage = Math.min(Math.round((totalBurned / burnTarget) * 100), 100);
 
   const handleSave = async () => {
-    setLoading(true);
+    setSyncing(true);
     const payload = {
       date,
       weight: Number(weight),
@@ -92,19 +101,27 @@ export default function App() {
       workouts
     };
 
+    const syncPromise = fetch('https://calorie-tracker-1-23f4.onrender.com/api/logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    // Elegant toast promise notification system
+    toast.promise(syncPromise, {
+      loading: 'Synchronizing telemetry metrics to cloud...',
+      success: <b>Progress securely synced to MongoDB!</b>,
+      error: <b>Failed to sync logging data streams.</b>,
+    });
+
     try {
-      await fetch('https://calorie-tracker-1-23f4.onrender.com/api/logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      alert('Progress Synced securely to MongoDB!');
-      fetchAnalytics();
+      const res = await syncPromise;
+      if (!res.ok) throw new Error();
+      await fetchAnalytics();
     } catch (err) {
       console.error("Error saving data:", err);
-      alert('Failed to sync logs.');
     } finally {
-      setLoading(false);
+      setSyncing(false);
     }
   };
 
@@ -119,8 +136,31 @@ export default function App() {
     setWorkouts(workouts.filter((_, i) => i !== index));
   };
 
+  // Full screen loader element
+  if (initialLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#090D16] text-[#F8FAFC]">
+        <div className="w-14 h-14 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin shadow-lg shadow-indigo-500/20"></div>
+        <p className="mt-5 text-xs font-bold tracking-widest text-indigo-400 uppercase animate-pulse">Initializing Premium Systems...</p>
+        <p className="mt-5 text-xs font-bold tracking-widest text-indigo-400 uppercase animate-pulse">Getting Your Data From Sever...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#090D16] text-[#F8FAFC] pb-16 font-sans antialiased selection:bg-indigo-500 selection:text-white">
+      {/* Toast Mounting Canvas */}
+      <Toaster 
+        position="top-right" 
+        toastOptions={{
+          style: {
+            background: '#0F172A',
+            color: '#F8FAFC',
+            border: '1px solid #1E293B'
+          }
+        }} 
+      />
+
       {/* Premium Dark Navbar */}
       <header className="border-b border-slate-800 bg-[#0F172A]/80 backdrop-blur-md sticky top-0 z-50 py-4 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
@@ -148,10 +188,10 @@ export default function App() {
             </div>
             <button 
               onClick={handleSave} 
-              disabled={loading}
-              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/25 transition-all text-xs tracking-wide"
+              disabled={syncing}
+              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/25 transition-all text-xs tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save size={14} /> {loading ? 'SYNCING...' : 'SYNC DATA'}
+              <Save size={14} /> {syncing ? 'SYNCING...' : 'SYNC DATA'}
             </button>
           </div>
         </div>
@@ -296,7 +336,7 @@ export default function App() {
                   <p className="text-xs text-slate-500 italic">No activity logs configured for today.</p>
                 </div>
               ) : (
-                workouts.map((w, index) => (
+                web = workouts.map((w, index) => (
                   <div key={index} className="flex justify-between items-center bg-[#1E293B]/20 px-4 py-3 rounded-xl border border-slate-800/50 hover:bg-[#1E293B]/40 transition-colors">
                     <span className="font-semibold text-xs text-slate-300 tracking-wide">{w.activity}</span>
                     <div className="flex items-center gap-4">
@@ -383,7 +423,7 @@ export default function App() {
               <div className="bg-indigo-950/20 p-4 rounded-xl border border-indigo-500/10">
                 <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block">BMI Rating</span>
                 <span className="text-2xl font-black text-white block mt-1">{bmi}</span>
-                <span className="text-[10px] text-indigo-300/60 font-semibold italic">kg/m² (Overweight)</span>
+                <span className="text-[10px] text-indigo-300/60 font-semibold italic">track unit (Overweight)</span>
               </div>
               <div className="bg-emerald-950/20 p-4 rounded-xl border border-emerald-500/10">
                 <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">Sedentary Burn</span>
