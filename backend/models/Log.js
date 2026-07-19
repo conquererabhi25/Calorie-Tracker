@@ -13,6 +13,13 @@ const LogSchema = new mongoose.Schema({
     snacks: { type: Number, default: 0 },
     dinner: { type: Number, default: 0 }
   },
+  // Added protein intake monitoring structure
+  proteinMeals: {
+    breakfast: { type: Number, default: 0 },
+    lunch: { type: Number, default: 0 },
+    snacks: { type: Number, default: 0 },
+    dinner: { type: Number, default: 0 }
+  },
   workouts: [
     {
       activity: { type: String, required: true },
@@ -22,5 +29,3 @@ const LogSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 module.exports = mongoose.model('Log', LogSchema);
-
-// small change
