@@ -3,10 +3,14 @@ require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const { GoogleGenAI, Type } = require("@google/genai");
 
 const Log = require('./models/Log');
 
 const app = express();
+
+// 2. Initialize the Gemini client
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // Middleware
 app.use(cors());
@@ -126,6 +130,62 @@ app.get('/api/analytics', async (req, res) => {
   }
 });
 
+// 3. Add the AI endpoint using 'app.post' instead of 'router.post'
+app.post("/api/chat", async (req, res) => {
+  const { query } = req.body;
+
+  if (!query) return res.status(400).json({ error: "Query is required" });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash', // Ensure you use an active model name
+      contents: `Estimate the calories and protein content for this food item: "${query}". Be as accurate as possible for standard Indian and global measurements.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object", // Use lowercase string
+          properties: {
+            foodItem: { type: "string" },   // Use lowercase string
+            calories: { type: "integer" },  // Use lowercase string
+            protein: { type: "integer" },   // Use lowercase string
+            confidence: { type: "string" }, // Use lowercase string
+          },
+          required: ["foodItem", "calories", "protein"],
+        },
+      },
+    });
+
+    const resultData = JSON.parse(response.text);
+    res.json(resultData);
+  } catch (error) {
+    // This will print the precise error message in your terminal console logs
+    console.error("Gemini API Error Detail:", error);
+    res.status(500).json({ error: "Failed to fetch nutrition estimation" });
+  }
+});
+
+app.get('/api/logs/:date', async (req, res) => {
+  try {
+    const log = await Log.findOne({ date: req.params.date });
+    if (!log) {
+      return res.status(200).json({
+        weight: 67,
+        height: 160,
+        age: 27,
+        calorieTarget: 1600,
+        burnTarget: 250,
+        meals: { breakfast: 0, lunch: 0, snacks: 0, dinner: 0 },
+        proteinMeals: { breakfast: 0, lunch: 0, snacks: 0, dinner: 0 }, // Added default fallback
+        workouts: []
+      });
+    }
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error pulling daily data log.' });
+  }
+});
 // Port Execution Configuration
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Kinetic Server engine processing on port ${PORT}`));
+
+// new update
